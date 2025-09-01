@@ -1,7 +1,12 @@
 package parser
 
 import (
+	"regexp"
 	"strings"
+)
+
+var (
+	regexpArgument = regexp.MustCompile(`\w+`)
 )
 
 type Parser interface {
@@ -12,10 +17,26 @@ func NewParser() Parser {
 	return &parser{}
 }
 
-type parser struct {}
+type parser struct{}
 
 func (p *parser) Parse(query string) (*Command, error) {
-	parts := strings.Split(query, " ")
+	command, err := p.parse(query)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, arg := range command.Arguments {
+		err := p.validateArgument(arg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return command, nil
+}
+
+func (p *parser) parse(query string) (*Command, error) {
+	parts := strings.Fields(query)
 
 	tokens := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -55,6 +76,14 @@ func (p *parser) Parse(query string) (*Command, error) {
 			Arguments:   tokens[1:2],
 		}, nil
 	default:
-        return nil, ErrUnknownCommandType
+		return nil, ErrUnknownCommandType
 	}
+}
+
+func (p *parser) validateArgument(arg string) error {
+	if regexpArgument.MatchString(arg) {
+		return nil
+	}
+
+	return ErrInvalidArgumentFormat
 }
