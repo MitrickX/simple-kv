@@ -35,6 +35,7 @@ func (cli *Cli) Go() {
 		result, err := cli.db.Exec(query)
 		if err != nil {
 			cli.errOut.Write([]byte(err.Error()))
+			cli.out.Write([]byte{'\n'})
 			continue
 		}
 
