@@ -2,44 +2,49 @@ package cli
 
 import (
 	"bufio"
+	"fmt"
 	"io"
-
-	"github.com/MitrickX/simple-kv/internal/db"
 )
 
 type Cli struct {
-	scanner *bufio.Scanner
-	db      *db.DB
-	out     io.Writer
-	errOut  io.Writer
+	input     io.Reader
+	output    io.Writer
+	errOutput io.Writer
+	conn      io.ReadWriter
 }
 
 func NewCli(
-	reader io.Reader,
-	out io.Writer,
-	errOut io.Writer,
-	db *db.DB,
+	input io.Reader,
+	output io.Writer,
+	errOutput io.Writer,
+	conn io.ReadWriter,
 ) *Cli {
-	scanner := bufio.NewScanner(reader)
 	return &Cli{
-		scanner: scanner,
-		db:      db,
-		out:     out,
-		errOut:  errOut,
+		input:     input,
+		output:    output,
+		errOutput: errOutput,
+		conn:      conn,
 	}
 }
 
 func (cli *Cli) Go() {
-	for cli.scanner.Scan() {
-		query := cli.scanner.Text()
-		result, err := cli.db.Exec(query)
-		if err != nil {
-			cli.errOut.Write([]byte(err.Error()))
-			cli.out.Write([]byte{'\n'})
-			continue
+	scanner := bufio.NewScanner(cli.input)
+	serverReader := bufio.NewScanner(cli.conn)
+	for {
+		fmt.Fprint(cli.output, "> ")
+		if !scanner.Scan() {
+			break
 		}
-
-		cli.out.Write([]byte(result))
-		cli.out.Write([]byte{'\n'})
+		text := scanner.Text()
+		if _, err := fmt.Fprintf(cli.conn, "%s\n", text); err != nil {
+			fmt.Fprintf(cli.errOutput, "failed to send: %v\n", err)
+			break
+		}
+		if serverReader.Scan() {
+			fmt.Fprintln(cli.output, serverReader.Text())
+		} else {
+			fmt.Fprintln(cli.errOutput, "server closed connection")
+			break
+		}
 	}
 }
