@@ -22,13 +22,13 @@ func main() {
 	configPath := flag.String("config", "", "path to config file")
 	flag.Parse()
 
-	if *configPath == "" {
-		log.Fatalln("Usage: server --config <path>")
-	}
-
-	cfg, err := config.Parse(*configPath)
-	if err != nil {
-		log.Fatalf("failed to parse config: %v\n", err)
+	cfg := config.Default()
+	if *configPath != "" {
+		var err error
+		cfg, err = config.Parse(*configPath)
+		if err != nil {
+			log.Fatalf("failed to parse config: %v\n", err)
+		}
 	}
 
 	logger := buildZap(&cfg)
@@ -49,19 +49,17 @@ func main() {
 func buildZap(cfg *config.Config) *zap.Logger {
 	var level zapcore.Level
 	switch strings.ToLower(cfg.Logging.Level) {
-	case "debug":
+	case config.LoggingLevelDebug:
 		level = zapcore.DebugLevel
-	case "info":
+	case config.LoggingLevelInfo:
 		level = zapcore.InfoLevel
-	case "warn", "warning":
+	case config.LoggingLevelWarning:
 		level = zapcore.WarnLevel
-	case "error":
+	case config.LoggingLevelError:
 		level = zapcore.ErrorLevel
-	case "dpanic":
-		level = zapcore.DPanicLevel
-	case "panic":
+	case config.LoggingLevelPanic:
 		level = zapcore.PanicLevel
-	case "fatal":
+	case config.LoggingLevelFatal:
 		level = zapcore.FatalLevel
 	default:
 		level = zapcore.InfoLevel
@@ -69,7 +67,7 @@ func buildZap(cfg *config.Config) *zap.Logger {
 
 	zapCfg := zap.NewProductionConfig()
 	zapCfg.Level = zap.NewAtomicLevelAt(level)
-	zapCfg.OutputPaths = []string{cfg.Logging.Output, os.Stderr.Name()}
+	zapCfg.OutputPaths = []string{cfg.Logging.Output}
 
 	logger, err := zapCfg.Build()
 	if err != nil {
