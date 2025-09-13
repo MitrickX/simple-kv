@@ -55,20 +55,20 @@ func (d *DataSize) UnmarshalYAML(value *yaml.Node) error {
 		return fmt.Errorf("invalid data size format: %w", err)
 	}
 
-	unit := strings.ToUpper(matches[2])
+	unit := strings.ToLower(matches[2])
 	switch unit {
-	case "", "B":
+	case "", "b":
 		*d = DataSize(v)
-	case "KB":
+	case "kb":
 		*d = DataSize(v * KB)
-	case "MB":
+	case "mb":
 		*d = DataSize(v * MB)
-	case "GB":
+	case "gb":
 		*d = DataSize(v * GB)
-	case "TB":
+	case "tb":
 		*d = DataSize(v * TB)
 	default:
-		return fmt.Errorf("invalid data size format: unknown unit: %s", unit)
+		return fmt.Errorf("invalid data size format: unknown unit: %s", matches[2])
 	}
 
 	return nil

@@ -22,7 +22,7 @@ engine:
 network:
   address: "127.0.0.1:0"
   max_connections: 100
-  max_message_size: "4KB"
+  max_message_size: 4kb
   idle_timeout: 5m
 logging:
   level: "info"
