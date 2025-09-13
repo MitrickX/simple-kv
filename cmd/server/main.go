@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -40,8 +41,11 @@ func main() {
 	storage := storage.NewStorage(engine)
 	db := db.NewDB(interpreter, storage)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	server := network.NewTcpServer(&cfg, db, logger)
-	if err := server.Start(); err != nil {
+	if err := server.Start(ctx); err != nil {
 		logger.Fatal("server exited with error", zap.Error(err))
 	}
 }

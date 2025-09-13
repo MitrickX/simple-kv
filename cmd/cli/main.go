@@ -7,8 +7,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/MitrickX/simple-kv/internal/cli"
+)
+
+const (
+	tcpDialTimeout               = time.Second
+	readWriteConnDeadlineTimeout = time.Second
 )
 
 func main() {
@@ -20,7 +26,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := net.Dial("tcp", *address)
+	fmt.Println("Support commands: SET/GET/DEL")
+	fmt.Println("SET key value")
+	fmt.Println("GET key")
+	fmt.Println("DEL key")
+
+	conn, err := net.DialTimeout("tcp", *address, tcpDialTimeout)
 	if err != nil {
 		fmt.Printf("failed to connect to server: %v\n", err)
 		os.Exit(1)
@@ -38,11 +49,29 @@ func main() {
 		os.Exit(0)
 	}()
 
-	fmt.Println("Support commands: SET/GET/DEL")
-	fmt.Println("SET key value")
-	fmt.Println("GET key")
-	fmt.Println("DEL key")
+	handshake(conn)
 
 	cli := cli.NewCli(os.Stdin, os.Stdout, os.Stderr, conn)
 	cli.Go()
+}
+
+func handshake(conn net.Conn) {
+	conn.SetDeadline(time.Now().Add(readWriteConnDeadlineTimeout))
+
+	buf := []byte("HELLO")
+	n, err := conn.Write(buf)
+	if err != nil && n != 6 {
+		fmt.Println("\nSession ended cause of fail handshake.")
+		conn.Close()
+		os.Exit(0)
+	}
+
+	n, err = conn.Read(buf)
+	if err != nil && string(buf[0:n]) != "HI" {
+		fmt.Println("\nSession ended cause of fail handshake.")
+		conn.Close()
+		os.Exit(0)
+	}
+
+	conn.SetDeadline(time.Time{})
 }

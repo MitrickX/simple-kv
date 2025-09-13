@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"time"
 )
 
 type Cli struct {
-	input     io.Reader
-	output    io.Writer
-	errOutput io.Writer
-	conn      io.ReadWriter
+	input        io.Reader
+	output       io.Writer
+	errOutput    io.Writer
+	conn         io.ReadWriter
+	connDeadline time.Duration
 }
 
 func NewCli(
@@ -36,6 +38,7 @@ func (cli *Cli) Go() {
 			break
 		}
 		text := scanner.Text()
+
 		if _, err := fmt.Fprintf(cli.conn, "%s\n", text); err != nil {
 			fmt.Fprintf(cli.errOutput, "failed to send: %v\n", err)
 			break
