@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	tcpDialTimeout               = time.Second
-	readWriteConnDeadlineTimeout = time.Second
+	tcpDialTimeout = time.Second
 )
 
 func main() {
@@ -49,29 +48,6 @@ func main() {
 		os.Exit(0)
 	}()
 
-	handshake(conn)
-
 	cli := cli.NewCli(os.Stdin, os.Stdout, os.Stderr, conn)
 	cli.Go()
-}
-
-func handshake(conn net.Conn) {
-	conn.SetDeadline(time.Now().Add(readWriteConnDeadlineTimeout))
-
-	buf := []byte("HELLO")
-	n, err := conn.Write(buf)
-	if err != nil && n != 6 {
-		fmt.Println("\nSession ended cause of fail handshake.")
-		conn.Close()
-		os.Exit(0)
-	}
-
-	n, err = conn.Read(buf)
-	if err != nil && string(buf[0:n]) != "HI" {
-		fmt.Println("\nSession ended cause of fail handshake.")
-		conn.Close()
-		os.Exit(0)
-	}
-
-	conn.SetDeadline(time.Time{})
 }

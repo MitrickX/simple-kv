@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,15 +18,26 @@ const (
 	LoggingLevelFatal   = "fatal"
 )
 
+type Timeout time.Duration
+
+func (t *Timeout) UnmarshalYAML(value *yaml.Node) error {
+	d, err := time.ParseDuration(value.Value)
+	if err != nil {
+		return fmt.Errorf("can't parse timeout: %w", err)
+	}
+	*t = Timeout(d)
+	return nil
+}
+
 type ConfigEngine struct {
 	Type string `yaml:"type"`
 }
 
 type ConfigNetwork struct {
-	Address        string `yaml:"address"`
-	MaxConnections int    `yaml:"max_connections"`
-	MaxMessageSize string `yaml:"max_message_size"`
-	IdleTimeout    string `yaml:"idle_timeout"`
+	Address        string  `yaml:"address"`
+	MaxConnections int     `yaml:"max_connections"`
+	MaxMessageSize string  `yaml:"max_message_size"`
+	IdleTimeout    Timeout `yaml:"idle_timeout"`
 }
 
 type ConfigLogging struct {
@@ -46,6 +59,9 @@ func Parse(filePath string) (Config, error) {
 		return cfg, err
 	}
 	err = yaml.Unmarshal(data, &cfg)
+	if err != nil {
+		return Config{}, err
+	}
 	return cfg, err
 }
 
@@ -58,10 +74,10 @@ func Default() Config {
 			Address:        "127.0.0.1:0",
 			MaxConnections: 5,
 			MaxMessageSize: "4KB",
-			IdleTimeout:    "5m",
+			IdleTimeout:    Timeout(5 * time.Minute),
 		},
 		Logging: ConfigLogging{
-			Level: LoggingLevelInfo,
+			Level:  LoggingLevelInfo,
 			Output: os.Stderr.Name(),
 		},
 	}

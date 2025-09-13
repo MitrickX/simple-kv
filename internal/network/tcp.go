@@ -5,10 +5,17 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/MitrickX/simple-kv/internal/config"
 	"github.com/MitrickX/simple-kv/internal/db"
 	"go.uber.org/zap"
+)
+
+const (
+	MessageHello = "HELLO"
+	MessageHi    = "HI"
+	MessageBye   = "BYE"
 )
 
 type TcpServer struct {
@@ -61,6 +68,7 @@ func (s *TcpServer) Start(ctx context.Context) error {
 func (s *TcpServer) handleConn(conn net.Conn) {
 	defer func() {
 		<-s.connLimiter
+		conn.Write([]byte(MessageBye))
 		conn.Close()
 
 		s.logger.Info("closed connection", zap.String("remote", conn.RemoteAddr().String()))
@@ -72,8 +80,14 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 
 	s.handshake(conn)
 
+	// set idle deadline
+	conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.Network.IdleTimeout)))
+
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
+		// update idle deadline
+		conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.Network.IdleTimeout)))
+
 		query := scanner.Text()
 
 		s.logger.Debug("input query", zap.String("query", query))
@@ -103,12 +117,12 @@ func (s *TcpServer) handshake(conn net.Conn) bool {
 		return false
 	}
 
-	if string(buf[0:n]) != "HELLO" {
+	if string(buf[0:n]) != MessageHello {
 		s.logger.Error("connection error cause of fail handshake, expect HELLO", zap.Binary("buf", buf))
 		return false
 	}
 
-	n, err = conn.Write([]byte("HI"))
+	n, err = conn.Write([]byte(MessageHi))
 	if err != nil {
 		s.logger.Error("connection error cause of fail handshake, can't send hi message", zap.Error(err))
 		return false

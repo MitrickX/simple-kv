@@ -1,20 +1,22 @@
 package config
 
 import (
-    "os"
-    "testing"
+	"errors"
+	"os"
+	"testing"
+	"time"
 )
 
 func TestParse(t *testing.T) {
-    tests := []struct {
-        name     string
-        content  string
-        wantErr  bool
-        wantType string
-    }{
-        {
-            name: "valid config",
-            content: `
+	tests := []struct {
+		name       string
+		content    string
+		wantConfig Config
+		wantErr    error
+	}{
+		{
+			name: "valid config",
+			content: `
 engine:
   type: "in_memory"
 network:
@@ -26,61 +28,89 @@ logging:
   level: "info"
   output: "/log/output.log"
 `,
-            wantErr:  false,
-            wantType: "in_memory",
-        },
-        {
-            name: "missing engine type",
-            content: `
-engine: {}
+			wantConfig: Config{
+				Engine: ConfigEngine{
+					Type: "in_memory",
+				},
+				Network: ConfigNetwork{
+					Address:        "127.0.0.1:0",
+					MaxConnections: 100,
+					MaxMessageSize: "4KB",
+					IdleTimeout:    Timeout(5 * time.Minute),
+				},
+				Logging: ConfigLogging{
+					Level:  "info",
+					Output: "/log/output.log",
+				},
+			},
+		},
+		{
+			name: "valid config",
+			content: `
+engine:
+  type: "in_memory"
 network:
   address: "127.0.0.1:0"
   max_connections: 100
   max_message_size: "4KB"
-  idle_timeout: 5m
+  idle_timeout: "invalid_timeout"
 logging:
   level: "info"
   output: "/log/output.log"
 `,
-            wantErr:  false,
-            wantType: "",
-        },
-        {
-            name: "invalid yaml",
-            content: `
+			wantConfig: Config{
+				Engine: ConfigEngine{
+					Type: "in_memory",
+				},
+				Network: ConfigNetwork{
+					Address:        "127.0.0.1:0",
+					MaxConnections: 100,
+					MaxMessageSize: "4KB",
+					IdleTimeout:    Timeout(5 * time.Minute),
+				},
+				Logging: ConfigLogging{
+					Level:  "info",
+					Output: "/log/output.log",
+				},
+			},
+			wantErr: errors.New("can't parse timeout: time: invalid duration \"invalid_timeout\""),
+		},
+		{
+			name: "invalid yaml",
+			content: `
 engine
   type: "in_memory"
 `,
-            wantErr:  true,
-        },
-    }
+			wantErr: errors.New("yaml: line 3: mapping values are not allowed in this context"),
+		},
+	}
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            tmpFile, err := os.CreateTemp("", "config-*.yaml")
-            if err != nil {
-                t.Fatalf("failed to create temp file: %v", err)
-            }
-            defer os.Remove(tmpFile.Name())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpFile, err := os.CreateTemp("", "config-*.yaml")
+			if err != nil {
+				t.Fatalf("failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpFile.Name())
 
-            if _, err := tmpFile.Write([]byte(tt.content)); err != nil {
-                t.Fatalf("failed to write to temp file: %v", err)
-            }
-            tmpFile.Close()
+			if _, err := tmpFile.Write([]byte(tt.content)); err != nil {
+				t.Fatalf("failed to write to temp file: %v", err)
+			}
+			tmpFile.Close()
 
-            cfg, err := Parse(tmpFile.Name())
-            if tt.wantErr {
-                if err == nil {
-                    t.Errorf("expected error, got nil")
-                }
-            } else {
-                if err != nil {
-                    t.Errorf("unexpected error: %v", err)
-                }
-                if cfg.Engine.Type != tt.wantType {
-                    t.Errorf("expected engine type %q, got %q", tt.wantType, cfg.Engine.Type)
-                }
-            }
-        })
-    }
+			cfg, err := Parse(tmpFile.Name())
+			if tt.wantErr != nil {
+				if err == nil || err.Error() != tt.wantErr.Error() {
+					t.Errorf("expected error %v, got %v", tt.wantErr, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if tt.wantConfig != cfg {
+					t.Errorf("expected config %+v, got %+v", tt.wantConfig, cfg)
+				}
+			}
+		})
+	}
 }
