@@ -15,7 +15,7 @@ func TestParse(t *testing.T) {
 		wantErr    error
 	}{
 		{
-			name: "valid config",
+			name: "valid_config",
 			content: `
 engine:
   type: "in_memory"
@@ -35,7 +35,7 @@ logging:
 				Network: ConfigNetwork{
 					Address:        "127.0.0.1:0",
 					MaxConnections: 100,
-					MaxMessageSize: "4KB",
+					MaxMessageSize: DataSize(4 * KB),
 					IdleTimeout:    Timeout(5 * time.Minute),
 				},
 				Logging: ConfigLogging{
@@ -45,7 +45,7 @@ logging:
 			},
 		},
 		{
-			name: "valid config",
+			name: "invalid_timeout",
 			content: `
 engine:
   type: "in_memory"
@@ -58,25 +58,45 @@ logging:
   level: "info"
   output: "/log/output.log"
 `,
-			wantConfig: Config{
-				Engine: ConfigEngine{
-					Type: "in_memory",
-				},
-				Network: ConfigNetwork{
-					Address:        "127.0.0.1:0",
-					MaxConnections: 100,
-					MaxMessageSize: "4KB",
-					IdleTimeout:    Timeout(5 * time.Minute),
-				},
-				Logging: ConfigLogging{
-					Level:  "info",
-					Output: "/log/output.log",
-				},
-			},
-			wantErr: errors.New("can't parse timeout: time: invalid duration \"invalid_timeout\""),
+			wantConfig: Config{},
+			wantErr:    errors.New("can't parse timeout: time: invalid duration \"invalid_timeout\""),
 		},
 		{
-			name: "invalid yaml",
+			name: "invalid_datasize",
+			content: `
+engine:
+  type: "in_memory"
+network:
+  address: "127.0.0.1:0"
+  max_connections: 100
+  max_message_size: "invalid_size"
+  idle_timeout: 5m
+logging:
+  level: "info"
+  output: "/log/output.log"
+`,
+			wantConfig: Config{},
+			wantErr:    errors.New("invalid data size format"),
+		},
+		{
+			name: "invalid_datasize_unknown_unit",
+			content: `
+engine:
+  type: "in_memory"
+network:
+  address: "127.0.0.1:0"
+  max_connections: 100
+  max_message_size: 100KKK
+  idle_timeout: 5m
+logging:
+  level: "info"
+  output: "/log/output.log"
+`,
+			wantConfig: Config{},
+			wantErr:    errors.New("invalid data size format: unknown unit: KKK"),
+		},
+		{
+			name: "invalid_yaml",
 			content: `
 engine
   type: "in_memory"

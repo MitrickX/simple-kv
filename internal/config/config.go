@@ -1,8 +1,12 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -18,7 +22,17 @@ const (
 	LoggingLevelFatal   = "fatal"
 )
 
-type Timeout time.Duration
+type (
+	Timeout  time.Duration
+	DataSize uint64
+)
+
+const (
+	KB = 1 << 10
+	MB = 1 << 20
+	GB = 1 << 30
+	TB = 1 << 40
+)
 
 func (t *Timeout) UnmarshalYAML(value *yaml.Node) error {
 	d, err := time.ParseDuration(value.Value)
@@ -29,15 +43,46 @@ func (t *Timeout) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+func (d *DataSize) UnmarshalYAML(value *yaml.Node) error {
+	re := regexp.MustCompile(`(?i)^(\d+)([a-zA-Z]+)?$`)
+	matches := re.FindStringSubmatch(strings.TrimSpace(value.Value))
+	if len(matches) < 2 {
+		return errors.New("invalid data size format")
+	}
+
+	v, err := strconv.ParseUint(matches[1], 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid data size format: %w", err)
+	}
+
+	unit := strings.ToUpper(matches[2])
+	switch unit {
+	case "", "B":
+		*d = DataSize(v)
+	case "KB":
+		*d = DataSize(v * KB)
+	case "MB":
+		*d = DataSize(v * MB)
+	case "GB":
+		*d = DataSize(v * GB)
+	case "TB":
+		*d = DataSize(v * TB)
+	default:
+		return fmt.Errorf("invalid data size format: unknown unit: %s", unit)
+	}
+
+	return nil
+}
+
 type ConfigEngine struct {
 	Type string `yaml:"type"`
 }
 
 type ConfigNetwork struct {
-	Address        string  `yaml:"address"`
-	MaxConnections int     `yaml:"max_connections"`
-	MaxMessageSize string  `yaml:"max_message_size"`
-	IdleTimeout    Timeout `yaml:"idle_timeout"`
+	Address        string   `yaml:"address"`
+	MaxConnections int      `yaml:"max_connections"`
+	MaxMessageSize DataSize `yaml:"max_message_size"`
+	IdleTimeout    Timeout  `yaml:"idle_timeout"`
 }
 
 type ConfigLogging struct {
@@ -73,7 +118,7 @@ func Default() Config {
 		Network: ConfigNetwork{
 			Address:        "127.0.0.1:0",
 			MaxConnections: 5,
-			MaxMessageSize: "4KB",
+			MaxMessageSize: DataSize(4 * KB),
 			IdleTimeout:    Timeout(5 * time.Minute),
 		},
 		Logging: ConfigLogging{
