@@ -89,8 +89,16 @@ func (c *Cli) Go() {
 				return
 			}
 			fmt.Fprintln(c.output, text)
+
+			continue
+		}
+
+		err := serverReader.Err()
+		if err != nil {
+			fmt.Fprintf(c.errOutput, "server closed connection: %s\n", err.Error())
 		} else {
 			fmt.Fprintln(c.errOutput, "server closed connection")
 		}
+		break
 	}
 }

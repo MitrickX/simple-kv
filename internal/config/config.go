@@ -68,7 +68,7 @@ func (d *DataSize) UnmarshalYAML(value *yaml.Node) error {
 	case "tb":
 		*d = DataSize(v * TB)
 	default:
-		return fmt.Errorf("invalid data size format: unknown unit: %s", matches[2])
+		return fmt.Errorf("invalid data size format: unknown unit: %s", unit)
 	}
 
 	return nil

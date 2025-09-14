@@ -3,6 +3,7 @@ package network
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -16,6 +17,8 @@ const (
 	MessageHello = "HELLO"
 	MessageHi    = "HI"
 	MessageBye   = "BYE"
+
+	startBufSize = 4096
 )
 
 type TcpServer struct {
@@ -48,7 +51,12 @@ func (s *TcpServer) Start(ctx context.Context) error {
 	}
 	defer ln.Close()
 
-	s.logger.Info("tpc server listening", zap.String("address", ln.Addr().String()))
+	s.logger.Info("tpc server listening",
+		zap.String("address", ln.Addr().String()),
+		zap.Int64("idleTimeout", int64(s.config.Network.IdleTimeout)),
+		zap.Int64("maxConnections", int64(s.config.Network.MaxConnections)),
+		zap.Int("maxMessageSize", int(s.config.Network.MaxMessageSize)),
+	)
 
 	for {
 		// limit number of connections using cond var
@@ -83,30 +91,43 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 	// set idle deadline
 	conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.Network.IdleTimeout)))
 
+	// init scanner with token size limit
 	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		// update idle deadline
-		conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.Network.IdleTimeout)))
+	bufSize := min(int(s.config.Network.MaxMessageSize), startBufSize)
+	scanner.Buffer(make([]byte, bufSize), int(s.config.Network.MaxMessageSize))
 
-		query := scanner.Text()
+	for {
+		for scanner.Scan() {
+			// move idle deadline
+			conn.SetReadDeadline(time.Now().Add(time.Duration(s.config.Network.IdleTimeout)))
 
-		s.logger.Debug("input query", zap.String("query", query))
+			query := scanner.Text()
 
-		result, err := s.db.Exec(query)
+			s.logger.Debug("input query", zap.String("query", query))
 
-		s.logger.Debug("execute query", zap.String("result", result), zap.Error(err))
+			result, err := s.db.Exec(query)
 
-		if err != nil {
-			fmt.Fprintf(conn, "%s\n", err.Error())
-			continue
+			s.logger.Debug("execute query", zap.String("result", result), zap.Error(err))
+
+			if err != nil {
+				fmt.Fprintf(conn, "%s\n", err.Error())
+				continue
+			}
+
+			fmt.Fprintf(conn, "%s\n", result)
 		}
 
-		fmt.Fprintf(conn, "%s\n", result)
+		err := scanner.Err()
+		if err != nil {
+			if errors.Is(err, bufio.ErrTooLong) {
+				fmt.Fprintf(conn, "error: %s\n", err.Error())
+			}
+			s.logger.Error("connection error", zap.Error(err))
+		}
+
+		break
 	}
 
-	if err := scanner.Err(); err != nil {
-		s.logger.Error("connection error", zap.Error(err))
-	}
 }
 
 func (s *TcpServer) handshake(conn net.Conn) bool {
