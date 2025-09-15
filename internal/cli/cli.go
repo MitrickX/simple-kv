@@ -2,43 +2,103 @@ package cli
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"net"
+	"os"
+	"time"
+)
 
-	"github.com/MitrickX/simple-kv/internal/db"
+const (
+	readWriteConnDeadlineTimeout = time.Second
+
+	MessageHello = "HELLO"
+	MessageHi    = "HI"
+	MessageBye   = "BYE"
 )
 
 type Cli struct {
-	scanner *bufio.Scanner
-	db      *db.DB
-	out     io.Writer
-	errOut  io.Writer
+	input     io.Reader
+	output    io.Writer
+	errOutput io.Writer
+	conn      net.Conn
 }
 
 func NewCli(
-	reader io.Reader,
-	out io.Writer,
-	errOut io.Writer,
-	db *db.DB,
+	input io.Reader,
+	output io.Writer,
+	errOutput io.Writer,
+	conn net.Conn,
 ) *Cli {
-	scanner := bufio.NewScanner(reader)
 	return &Cli{
-		scanner: scanner,
-		db:      db,
-		out:     out,
-		errOut:  errOut,
+		input:     input,
+		output:    output,
+		errOutput: errOutput,
+		conn:      conn,
 	}
 }
 
-func (cli *Cli) Go() {
-	for cli.scanner.Scan() {
-		query := cli.scanner.Text()
-		result, err := cli.db.Exec(query)
-		if err != nil {
-			cli.errOut.Write([]byte(err.Error()))
+func (c *Cli) handlshake() {
+	c.conn.SetDeadline(time.Now().Add(readWriteConnDeadlineTimeout))
+
+	buf := []byte(MessageHello)
+	n, err := c.conn.Write(buf)
+	if err != nil && n != 6 {
+		_ = fmt.Sprintln(c.output, "\nSession ended cause of fail handshake.")
+		c.conn.Close()
+		os.Exit(0)
+	}
+
+	n, err = c.conn.Read(buf)
+	if err != nil && string(buf[0:n]) != MessageHi {
+		_ = fmt.Sprintln(c.output, "\nSession ended cause of fail handshake.")
+		c.conn.Close()
+		os.Exit(0)
+	}
+
+	c.conn.SetDeadline(time.Time{})
+}
+
+func (c *Cli) Go() {
+	defer c.conn.Close()
+
+	c.handlshake()
+
+	go func() {
+		scanner := bufio.NewScanner(c.input)
+		for {
+			fmt.Fprint(c.output, "> ")
+			if !scanner.Scan() {
+				break
+			}
+			text := scanner.Text()
+
+			if _, err := fmt.Fprintf(c.conn, "%s\n", text); err != nil {
+				fmt.Fprintf(c.errOutput, "failed to send: %v\n", err)
+				break
+			}
+		}
+	}()
+
+	for {
+		serverReader := bufio.NewScanner(c.conn)
+		if serverReader.Scan() {
+			text := serverReader.Text()
+			if text == MessageBye {
+				fmt.Fprintln(c.errOutput, "server send bye message and closed connection")
+				return
+			}
+			fmt.Fprintln(c.output, text)
+
 			continue
 		}
 
-		cli.out.Write([]byte(result))
-		cli.out.Write([]byte{'\n'})
+		err := serverReader.Err()
+		if err != nil {
+			fmt.Fprintf(c.errOutput, "server closed connection: %s\n", err.Error())
+		} else {
+			fmt.Fprintln(c.errOutput, "server closed connection")
+		}
+		break
 	}
 }
