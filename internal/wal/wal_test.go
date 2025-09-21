@@ -22,14 +22,14 @@ func TestWAL_Write(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		config     config.ConfigWAL
+		config     config.Config
 		deps       func() deps
 		queries    []string
 		wantErrors []error
 	}{
 		{
 			name:   "write_one_query",
-			config: config.Default().WAL,
+			config: config.Default(),
 			deps: func() deps {
 				return deps{
 					os:   utilsOs.NewMockOS(t),
@@ -43,7 +43,7 @@ func TestWAL_Write(t *testing.T) {
 		},
 		{
 			name:   "write_two_queries",
-			config: config.Default().WAL,
+			config: config.Default(),
 			deps: func() deps {
 				return deps{
 					os:   utilsOs.NewMockOS(t),
@@ -58,10 +58,12 @@ func TestWAL_Write(t *testing.T) {
 		},
 		{
 			name: "flush_open_file_error",
-			config: config.ConfigWAL{
-				FlushingBatchSize: 3,
-				MaxSegmentSize:    config.DataSize(10 * config.MB),
-				DataDirectory:     "test",
+			config: config.Config{
+				WAL: config.ConfigWAL{
+					FlushingBatchSize: 3,
+					MaxSegmentSize:    config.DataSize(10 * config.MB),
+					DataDirectory:     "test",
+				},
 			},
 			deps: func() deps {
 				expectedFileName := testTime.Format(fileNameFromNowTimeLayout)
@@ -94,10 +96,12 @@ func TestWAL_Write(t *testing.T) {
 		},
 		{
 			name: "flush_write_to_file_error",
-			config: config.ConfigWAL{
-				FlushingBatchSize: 3,
-				MaxSegmentSize:    config.DataSize(10 * config.MB),
-				DataDirectory:     "test",
+			config: config.Config{
+				WAL: config.ConfigWAL{
+					FlushingBatchSize: 3,
+					MaxSegmentSize:    config.DataSize(10 * config.MB),
+					DataDirectory:     "test",
+				},
 			},
 			deps: func() deps {
 				expectedFileName := testTime.Format(fileNameFromNowTimeLayout)
@@ -139,10 +143,12 @@ PUT test3 3`
 		},
 		{
 			name: "hit_max_segmention_size",
-			config: config.ConfigWAL{
-				FlushingBatchSize: 2,
-				MaxSegmentSize:    config.DataSize(30),
-				DataDirectory:     "test",
+			config: config.Config{
+				WAL: config.ConfigWAL{
+					FlushingBatchSize: 2,
+					MaxSegmentSize:    config.DataSize(30),
+					DataDirectory:     "test",
+				},
 			},
 			deps: func() deps {
 				mockTime := utilsTime.NewMockTime(t)
@@ -230,7 +236,7 @@ PUT test3 3`
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dps := tt.deps()
-			wal := NewWAL(tt.config, dps.os, dps.time)
+			wal := NewWAL(&tt.config, dps.os, dps.time)
 
 			for i, q := range tt.queries {
 				err := wal.Write(q)

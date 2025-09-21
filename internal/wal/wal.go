@@ -15,8 +15,13 @@ const (
 	fileNameFromNowTimeLayout = "20060102-150405-000"
 )
 
-type WAL struct {
-	config          config.ConfigWAL
+type WAL interface {
+	Write(query string) error
+	Flush() error
+}
+
+type wal struct {
+	config          *config.Config
 	buf             []byte
 	batchSize       int          // текущее кол-во запросов в батче, записи между батчами разделяются \n
 	file            utilsOs.File // текущий файл wal-сегмента
@@ -25,30 +30,36 @@ type WAL struct {
 	t               utilsTime.Time
 }
 
-func NewWAL(config config.ConfigWAL, os utilsOs.OS, t utilsTime.Time) *WAL {
-	return &WAL{
+func NewWAL(cfg *config.Config, os utilsOs.OS, t utilsTime.Time) WAL {
+	return &wal{
 		buf:    make([]byte, 0, initialBufSize),
-		config: config,
+		config: cfg,
 		os:     os,
 		t:      t,
 	}
 }
 
-func (w *WAL) Write(query string) error {
+func (w *wal) Write(query string) error {
 	if w.batchSize > 0 {
 		w.buf = append(w.buf, '\n')
 	}
 	w.buf = append(w.buf, query...)
 	w.batchSize++
 
-	if w.batchSize >= w.config.FlushingBatchSize {
+	if w.batchSize >= w.config.WAL.FlushingBatchSize {
 		return w.Flush()
 	}
 
 	return nil
 }
 
-func (w *WAL) Flush() error {
+func (w *wal) Flush() error {
+	err := w.doFlush()
+	fmt.Println("wal-flush", err)
+	return err
+}
+
+func (w *wal) doFlush() error {
 	err := w.openWalSegmentFile()
 	if err != nil {
 		return err
@@ -73,7 +84,7 @@ func (w *WAL) Flush() error {
 	w.buf = w.buf[:0]
 	w.batchSize = 0
 
-	if w.currentFileSize >= int(w.config.MaxSegmentSize) {
+	if w.currentFileSize >= int(w.config.WAL.MaxSegmentSize) {
 		err = w.file.Close()
 		if err != nil {
 			return fmt.Errorf("fail to close wal segment file (%s): %w", w.file.Name(), err)
@@ -85,7 +96,7 @@ func (w *WAL) Flush() error {
 	return nil
 }
 
-func (w *WAL) openWalSegmentFile() error {
+func (w *wal) openWalSegmentFile() error {
 	if w.file != nil {
 		return nil
 	}
@@ -93,8 +104,8 @@ func (w *WAL) openWalSegmentFile() error {
 	ts := w.t.Now().Format(fileNameFromNowTimeLayout)
 
 	fileName := ts
-	filePath := strings.TrimSuffix(w.config.DataDirectory, string(os.PathSeparator)) + string(os.PathSeparator) + fileName
-	file, err := w.os.OpenFile(filePath, os.O_APPEND|os.O_TRUNC, 0644)
+	filePath := strings.TrimSuffix(w.config.WAL.DataDirectory, string(os.PathSeparator)) + string(os.PathSeparator) + fileName
+	file, err := w.os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("fail to open new wal segemnt file (%s): %w", fileName, err)
 	}
