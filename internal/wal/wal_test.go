@@ -27,35 +27,35 @@ func TestWAL_Write(t *testing.T) {
 		queries    []string
 		wantErrors []error
 	}{
-		// {
-		// 	name:   "write_one_query",
-		// 	config: config.Default().WAL,
-		// 	deps: func() deps {
-		// 		return deps{
-		// 			os:   utilsOs.NewMockOS(t),
-		// 			time: utilsTime.NewMockTime(t),
-		// 		}
-		// 	},
-		// 	queries: []string{
-		// 		"PUT test 1",
-		// 	},
-		// 	wantErrors: []error{nil},
-		// },
-		// {
-		// 	name:   "write_two_queries",
-		// 	config: config.Default().WAL,
-		// 	deps: func() deps {
-		// 		return deps{
-		// 			os:   utilsOs.NewMockOS(t),
-		// 			time: utilsTime.NewMockTime(t),
-		// 		}
-		// 	},
-		// 	queries: []string{
-		// 		"PUT test 1",
-		// 		"PUT test2 2",
-		// 	},
-		// 	wantErrors: []error{nil, nil},
-		// },
+		{
+			name:   "write_one_query",
+			config: config.Default().WAL,
+			deps: func() deps {
+				return deps{
+					os:   utilsOs.NewMockOS(t),
+					time: utilsTime.NewMockTime(t),
+				}
+			},
+			queries: []string{
+				"PUT test 1",
+			},
+			wantErrors: []error{nil},
+		},
+		{
+			name:   "write_two_queries",
+			config: config.Default().WAL,
+			deps: func() deps {
+				return deps{
+					os:   utilsOs.NewMockOS(t),
+					time: utilsTime.NewMockTime(t),
+				}
+			},
+			queries: []string{
+				"PUT test 1",
+				"PUT test2 2",
+			},
+			wantErrors: []error{nil, nil},
+		},
 		{
 			name: "flush_open_file_error",
 			config: config.ConfigWAL{
@@ -110,7 +110,8 @@ PUT test2 2
 PUT test3 3`
 
 				file := utilsOs.NewMockFile(t)
-				file.EXPECT().Write([]byte(bufStr)).Return(0, errors.New("file_write_error"))
+				file.EXPECT().Write([]byte(bufStr)).Return(len(bufStr), nil)
+				file.EXPECT().Sync().Return(errors.New("sync_error"))
 				file.EXPECT().Name().Return(expectedFileName)
 
 				mockOs := utilsOs.NewMockOS(t)
@@ -130,9 +131,9 @@ PUT test3 3`
 			wantErrors: []error{
 				nil,
 				nil,
-				fmt.Errorf("fail to write to wal segment file (%s): %w",
+				fmt.Errorf("fail to sync wal segment file (%s): %w",
 					testTime.Format(fileNameFromNowTimeLayout),
-					errors.New("file_write_error"),
+					errors.New("sync_error"),
 				),
 			},
 		},
