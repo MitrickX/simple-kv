@@ -54,10 +54,16 @@ func (w *WAL) flush() error {
 		return err
 	}
 
-	_, err = w.file.Write(w.buf)
+	n, err := w.file.Write(w.buf)
 	if err != nil {
 		return fmt.Errorf("fail to write to wal segment file (%s): %w", w.file.Name(), err)
 	}
+
+	if n < len(w.buf) {
+		return fmt.Errorf("fail to write all buffered data to file (%s): %w", w.file.Name(), err)
+	}
+
+	w.currentFileSize += n
 
 	err = w.file.Sync()
 	if err != nil {
@@ -68,7 +74,10 @@ func (w *WAL) flush() error {
 	w.batchSize = 0
 
 	if w.currentFileSize >= int(w.config.MaxSegmentSize) {
-		_ = w.file.Close()
+		err = w.file.Close()
+		if err != nil {
+			return fmt.Errorf("fail to close wal segment file (%s): %w", w.file.Name(), err)
+		}
 		w.file = nil
 		w.currentFileSize = 0
 	}

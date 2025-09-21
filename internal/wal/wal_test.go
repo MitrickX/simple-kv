@@ -137,6 +137,94 @@ PUT test3 3`
 				),
 			},
 		},
+		{
+			name: "hit_max_segmention_size",
+			config: config.ConfigWAL{
+				FlushingBatchSize: 2,
+				MaxSegmentSize:    config.DataSize(30),
+				DataDirectory:     "test",
+			},
+			deps: func() deps {
+				mockTime := utilsTime.NewMockTime(t)
+				mockOs := utilsOs.NewMockOS(t)
+
+				setUpMocksExpects := func(bufStrs []string, nowTime time.Time, expectClose bool) {
+					file := utilsOs.NewMockFile(t)
+					for _, bf := range bufStrs {
+						file.EXPECT().Write([]byte(bf)).Return(len(bf), nil)
+						file.EXPECT().Sync().Return(nil)
+					}
+					if expectClose {
+						file.EXPECT().Close().Return(nil)
+					}
+					fileName := nowTime.Format(fileNameFromNowTimeLayout)
+					mockTime.EXPECT().Now().Return(nowTime).Once()
+					mockOs.EXPECT().OpenFile("test/"+fileName, os.O_APPEND|os.O_TRUNC, os.FileMode(0644)).
+						Return(file, nil).Once()
+				}
+
+				setUpMocksExpects([]string{
+					"PUT a 1\nPUT b 2",
+					"PUT c 3\nPUT d 4"},
+					testTime,
+					true,
+				)
+				setUpMocksExpects([]string{
+					"PUT e 5\nPUT f 6",
+					"PUT g 7\nPUT aa 1"},
+					testTime.Add(time.Second),
+					true,
+				)
+				setUpMocksExpects([]string{
+					"PUT bb 2\nPUT cc 3",
+					"PUT dd 4\nPUT ee 5"},
+					testTime.Add(2*time.Second),
+					true,
+				)
+				setUpMocksExpects([]string{
+					"PUT ff 6\nPUT gg 7"},
+					testTime.Add(3*time.Second),
+					false,
+				)
+
+				return deps{
+					os:   mockOs,
+					time: mockTime,
+				}
+			},
+			queries: []string{
+				"PUT a 1",
+				"PUT b 2",
+				"PUT c 3",
+				"PUT d 4",
+				"PUT e 5",
+				"PUT f 6",
+				"PUT g 7",
+				"PUT aa 1",
+				"PUT bb 2",
+				"PUT cc 3",
+				"PUT dd 4",
+				"PUT ee 5",
+				"PUT ff 6",
+				"PUT gg 7",
+			},
+			wantErrors: []error{
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+			},
+		},
 	}
 
 	for _, tt := range tests {
