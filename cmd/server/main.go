@@ -5,7 +5,6 @@ import (
 	"flag"
 	"log"
 	"os"
-
 	"strings"
 
 	"github.com/MitrickX/simple-kv/internal/config"

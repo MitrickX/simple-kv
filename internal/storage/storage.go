@@ -45,11 +45,13 @@ func (s *storage) Run(ctx context.Context) {
 		ticker := time.NewTicker(time.Duration(s.cfg.WAL.FlushingBatchTimeout))
 		defer ticker.Stop()
 
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.walFlush()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.walFlush()
+			}
 		}
 	}()
 }
@@ -75,7 +77,7 @@ func (s *storage) Exec(cmd *parser.Command) Result {
 
 	s.mx.Lock()
 	defer s.mx.Unlock()
-	err := s.wal.Write(string(cmd.CommandType))
+	err := s.wal.Write(cmd.String())
 	fmt.Println("WAL-write", err)
 	if err != nil {
 		return Result{

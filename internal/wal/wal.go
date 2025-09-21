@@ -40,10 +40,8 @@ func NewWAL(cfg *config.Config, os utilsOs.OS, t utilsTime.Time) WAL {
 }
 
 func (w *wal) Write(query string) error {
-	if w.batchSize > 0 {
-		w.buf = append(w.buf, '\n')
-	}
 	w.buf = append(w.buf, query...)
+	w.buf = append(w.buf, '\n')
 	w.batchSize++
 
 	if w.batchSize >= w.config.WAL.FlushingBatchSize {
@@ -54,12 +52,10 @@ func (w *wal) Write(query string) error {
 }
 
 func (w *wal) Flush() error {
-	err := w.doFlush()
-	fmt.Println("wal-flush", err)
-	return err
-}
+	if w.batchSize == 0 {
+		return nil
+	}
 
-func (w *wal) doFlush() error {
 	err := w.openWalSegmentFile()
 	if err != nil {
 		return err

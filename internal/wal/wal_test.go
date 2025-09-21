@@ -72,7 +72,7 @@ func TestWAL_Write(t *testing.T) {
 				mockTime.EXPECT().Now().Return(testTime)
 
 				mockOs := utilsOs.NewMockOS(t)
-				mockOs.EXPECT().OpenFile("test/"+expectedFileName, os.O_APPEND|os.O_TRUNC, os.FileMode(0644)).
+				mockOs.EXPECT().OpenFile("test/"+expectedFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.FileMode(0644)).
 					Return(nil, errors.New("open_file_error"))
 
 				return deps{
@@ -111,7 +111,8 @@ func TestWAL_Write(t *testing.T) {
 
 				bufStr := `PUT test 1
 PUT test2 2
-PUT test3 3`
+PUT test3 3
+`
 
 				file := utilsOs.NewMockFile(t)
 				file.EXPECT().Write([]byte(bufStr)).Return(len(bufStr), nil)
@@ -119,7 +120,7 @@ PUT test3 3`
 				file.EXPECT().Name().Return(expectedFileName)
 
 				mockOs := utilsOs.NewMockOS(t)
-				mockOs.EXPECT().OpenFile("test/"+expectedFileName, os.O_APPEND|os.O_TRUNC, os.FileMode(0644)).
+				mockOs.EXPECT().OpenFile("test/"+expectedFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.FileMode(0644)).
 					Return(file, nil)
 
 				return deps{
@@ -165,30 +166,30 @@ PUT test3 3`
 					}
 					fileName := nowTime.Format(fileNameFromNowTimeLayout)
 					mockTime.EXPECT().Now().Return(nowTime).Once()
-					mockOs.EXPECT().OpenFile("test/"+fileName, os.O_APPEND|os.O_TRUNC, os.FileMode(0644)).
+					mockOs.EXPECT().OpenFile("test/"+fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.FileMode(0644)).
 						Return(file, nil).Once()
 				}
 
 				setUpMocksExpects([]string{
-					"PUT a 1\nPUT b 2",
-					"PUT c 3\nPUT d 4"},
+					"PUT a 1\nPUT b 2\n",
+					"PUT c 3\nPUT d 4\n"},
 					testTime,
 					true,
 				)
 				setUpMocksExpects([]string{
-					"PUT e 5\nPUT f 6",
-					"PUT g 7\nPUT aa 1"},
+					"PUT e 5\nPUT f 6\n",
+					"PUT g 7\nPUT aa 1\n"},
 					testTime.Add(time.Second),
 					true,
 				)
 				setUpMocksExpects([]string{
-					"PUT bb 2\nPUT cc 3",
-					"PUT dd 4\nPUT ee 5"},
+					"PUT bb 2\nPUT cc 3\n",
+					"PUT dd 4\nPUT ee 5\n"},
 					testTime.Add(2*time.Second),
 					true,
 				)
 				setUpMocksExpects([]string{
-					"PUT ff 6\nPUT gg 7"},
+					"PUT ff 6\nPUT gg 7\n"},
 					testTime.Add(3*time.Second),
 					false,
 				)
