@@ -12,7 +12,7 @@ import (
 
 const (
 	initialBufSize            = 4096
-	fileNameFromNowTimeLayout = "20060102-150405-000"
+	fileNameFromNowTimeLayout = "20060102-150405.000"
 )
 
 type WAL interface {
