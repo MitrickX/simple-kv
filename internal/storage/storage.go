@@ -1,29 +1,73 @@
 package storage
 
-import "github.com/MitrickX/simple-kv/internal/storage/engine"
+import (
+	"fmt"
+	"sync"
 
-type Storage interface {
-	Set(key, value string)
-	Get(key string) (string, bool)
-	Del(key string)
+	"github.com/MitrickX/simple-kv/internal/interpreter/parser"
+	"github.com/MitrickX/simple-kv/internal/storage/engine"
+	"github.com/MitrickX/simple-kv/internal/wal"
+)
+
+type Result struct {
+	Ok  bool
+	Val string
+	Err error
 }
 
-func NewStorage(engine engine.Engine) Storage {
+type Storage interface {
+	Exec(cmd *parser.Command) Result
+}
+
+func NewStorage(engine engine.Engine, wal wal.WAL) Storage {
 	return &storage{
 		engine: engine,
+		wal:    wal,
+		mx:     &sync.RWMutex{},
 	}
 }
 
 type storage struct {
 	engine engine.Engine
+	wal    wal.WAL
+	mx     *sync.RWMutex
 }
 
-func (s *storage) Set(key, value string) {
-	s.engine.Set(key, value)
-}
-func (s *storage) Get(key string) (string, bool) {
-	return s.engine.Get(key)
-}
-func (s *storage) Del(key string) {
-	s.engine.Del(key)
+func (s *storage) Exec(cmd *parser.Command) Result {
+	if cmd.CommandType != parser.SetCommandType &&
+		cmd.CommandType != parser.DelCommandType &&
+		cmd.CommandType != parser.GetCommandType {
+		return Result{
+			Err: fmt.Errorf("unknown command type: %v", cmd.CommandType),
+		}
+	}
+
+	if cmd.CommandType == parser.GetCommandType {
+		s.mx.RLock()
+		defer s.mx.RUnlock()
+		val, ok := s.engine.Get(cmd.Arguments[0])
+		return Result{
+			Ok:  ok,
+			Val: val,
+		}
+	}
+
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	err := s.wal.Write(string(cmd.CommandType))
+	if err != nil {
+		return Result{
+			Err: err,
+		}
+	}
+
+	if cmd.CommandType == parser.SetCommandType {
+		s.engine.Set(cmd.Arguments[0], cmd.Arguments[1])
+	}
+
+	s.engine.Del(cmd.Arguments[0])
+
+	return Result{
+		Ok: true,
+	}
 }

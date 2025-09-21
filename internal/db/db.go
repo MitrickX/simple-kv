@@ -29,21 +29,22 @@ func (db *DB) Exec(query string) (string, error) {
 		return "", fmt.Errorf("db exec fail: %w", err)
 	}
 
-	switch result.Command.CommandType {
-	case parser.SetCommandType:
-		db.storage.Set(result.Command.Arguments[0], result.Command.Arguments[1])
-		return "ok", nil
-	case parser.GetCommandType:
-		val, exists := db.storage.Get(result.Command.Arguments[0])
-		if exists {
-			return fmt.Sprintf("val: %s", val), nil
+	res := db.storage.Exec(&result.Command)
+	if res.Err != nil {
+		return "", res.Err
+	}
+
+	if result.Command.CommandType == parser.GetCommandType {
+		if res.Ok {
+			return fmt.Sprintf("val: %s", res.Val), nil
 		} else {
 			return "none", nil
 		}
-	case parser.DelCommandType:
-		db.storage.Del(result.Command.Arguments[0])
-		return "ok", nil
-	default:
-		return "none", nil
 	}
+
+	if res.Ok {
+		return "ok", nil
+	}
+
+	return "none", nil
 }

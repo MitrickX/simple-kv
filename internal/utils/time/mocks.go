@@ -37,6 +37,59 @@ func (_m *MockTime) EXPECT() *MockTime_Expecter {
 	return &MockTime_Expecter{mock: &_m.Mock}
 }
 
+// NewTicker provides a mock function for the type MockTime
+func (_mock *MockTime) NewTicker(d time.Duration) *time.Ticker {
+	ret := _mock.Called(d)
+
+	if len(ret) == 0 {
+		panic("no return value specified for NewTicker")
+	}
+
+	var r0 *time.Ticker
+	if returnFunc, ok := ret.Get(0).(func(time.Duration) *time.Ticker); ok {
+		r0 = returnFunc(d)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*time.Ticker)
+		}
+	}
+	return r0
+}
+
+// MockTime_NewTicker_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'NewTicker'
+type MockTime_NewTicker_Call struct {
+	*mock.Call
+}
+
+// NewTicker is a helper method to define mock.On call
+//   - d time.Duration
+func (_e *MockTime_Expecter) NewTicker(d interface{}) *MockTime_NewTicker_Call {
+	return &MockTime_NewTicker_Call{Call: _e.mock.On("NewTicker", d)}
+}
+
+func (_c *MockTime_NewTicker_Call) Run(run func(d time.Duration)) *MockTime_NewTicker_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 time.Duration
+		if args[0] != nil {
+			arg0 = args[0].(time.Duration)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTime_NewTicker_Call) Return(ticker *time.Ticker) *MockTime_NewTicker_Call {
+	_c.Call.Return(ticker)
+	return _c
+}
+
+func (_c *MockTime_NewTicker_Call) RunAndReturn(run func(d time.Duration) *time.Ticker) *MockTime_NewTicker_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Now provides a mock function for the type MockTime
 func (_mock *MockTime) Now() time.Time {
 	ret := _mock.Called()

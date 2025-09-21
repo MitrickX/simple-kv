@@ -7,7 +7,7 @@ import (
 
 	"github.com/MitrickX/simple-kv/internal/config"
 	utilsOs "github.com/MitrickX/simple-kv/internal/utils/os"
-	"github.com/MitrickX/simple-kv/internal/utils/time"
+	utilsTime "github.com/MitrickX/simple-kv/internal/utils/time"
 )
 
 const (
@@ -22,10 +22,10 @@ type WAL struct {
 	file            utilsOs.File // текущий файл wal-сегмента
 	currentFileSize int          // текущий размер в байтах wal-сегмента
 	os              utilsOs.OS
-	t               time.Time
+	t               utilsTime.Time
 }
 
-func NewWAL(config config.ConfigWAL, os utilsOs.OS, t time.Time) *WAL {
+func NewWAL(config config.ConfigWAL, os utilsOs.OS, t utilsTime.Time) *WAL {
 	return &WAL{
 		buf:    make([]byte, 0, initialBufSize),
 		config: config,
@@ -42,13 +42,13 @@ func (w *WAL) Write(query string) error {
 	w.batchSize++
 
 	if w.batchSize >= w.config.FlushingBatchSize {
-		return w.flush()
+		return w.Flush()
 	}
 
 	return nil
 }
 
-func (w *WAL) flush() error {
+func (w *WAL) Flush() error {
 	err := w.openWalSegmentFile()
 	if err != nil {
 		return err
