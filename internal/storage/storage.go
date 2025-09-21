@@ -69,6 +69,7 @@ func (s *storage) Exec(cmd *parser.Command) Result {
 		s.mx.RLock()
 		defer s.mx.RUnlock()
 		val, ok := s.engine.Get(cmd.Arguments[0])
+		fmt.Println(val, ok)
 		return Result{
 			Ok:  ok,
 			Val: val,
@@ -78,7 +79,7 @@ func (s *storage) Exec(cmd *parser.Command) Result {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	err := s.wal.Write(cmd.String())
-	fmt.Println("WAL-write", err)
+
 	if err != nil {
 		return Result{
 			Err: err,
@@ -87,9 +88,9 @@ func (s *storage) Exec(cmd *parser.Command) Result {
 
 	if cmd.CommandType == parser.SetCommandType {
 		s.engine.Set(cmd.Arguments[0], cmd.Arguments[1])
+	} else {
+		s.engine.Del(cmd.Arguments[0])
 	}
-
-	s.engine.Del(cmd.Arguments[0])
 
 	return Result{
 		Ok: true,
