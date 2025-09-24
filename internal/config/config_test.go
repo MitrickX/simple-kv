@@ -27,6 +27,11 @@ network:
 logging:
   level: "info"
   output: "/log/output.log"
+wal:  
+  flushing_batch_size: 100
+  flushing_batch_timeout: 10ms
+  max_segment_size: 10MB
+  data_directory: "/data/spider/wal"
 `,
 			wantConfig: Config{
 				Engine: ConfigEngine{
@@ -41,6 +46,12 @@ logging:
 				Logging: ConfigLogging{
 					Level:  "info",
 					Output: "/log/output.log",
+				},
+				WAL: ConfigWAL{
+					FlushingBatchSize:    100,
+					FlushingBatchTimeout: Timeout(10 * time.Millisecond),
+					MaxSegmentSize:       DataSize(10 * MB),
+					DataDirectory:        "/data/spider/wal",
 				},
 			},
 		},
@@ -93,7 +104,7 @@ logging:
   output: "/log/output.log"
 `,
 			wantConfig: Config{},
-			wantErr:    errors.New("invalid data size format: unknown unit: KKK"),
+			wantErr:    errors.New("invalid data size format: unknown unit: kkk"),
 		},
 		{
 			name: "invalid_yaml",

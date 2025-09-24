@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/MitrickX/simple-kv/internal/config"
-	"github.com/MitrickX/simple-kv/internal/db"
+	"github.com/MitrickX/simple-kv/internal/interpreter"
+	"github.com/MitrickX/simple-kv/internal/interpreter/parser"
+	"github.com/MitrickX/simple-kv/internal/storage"
 	"go.uber.org/zap"
 )
 
@@ -23,19 +25,22 @@ const (
 
 type TcpServer struct {
 	config      *config.Config
-	db          *db.DB
+	interpreter interpreter.Interpreter
+	storage     storage.Storage
 	logger      *zap.Logger
 	connLimiter chan struct{}
 }
 
 func NewTcpServer(
 	config *config.Config,
-	db *db.DB,
+	interpreter interpreter.Interpreter,
+	storage storage.Storage,
 	logger *zap.Logger,
 ) *TcpServer {
 	return &TcpServer{
 		config:      config,
-		db:          db,
+		interpreter: interpreter,
+		storage:     storage,
 		logger:      logger,
 		connLimiter: make(chan struct{}, config.Network.MaxConnections),
 	}
@@ -53,9 +58,6 @@ func (s *TcpServer) Start(ctx context.Context) error {
 
 	s.logger.Info("tpc server listening",
 		zap.String("address", ln.Addr().String()),
-		zap.Int64("idleTimeout", int64(s.config.Network.IdleTimeout)),
-		zap.Int64("maxConnections", int64(s.config.Network.MaxConnections)),
-		zap.Int("maxMessageSize", int(s.config.Network.MaxMessageSize)),
 	)
 
 	for {
@@ -105,7 +107,7 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 
 			s.logger.Debug("input query", zap.String("query", query))
 
-			result, err := s.db.Exec(query)
+			result, err := s.exec(query)
 
 			s.logger.Debug("execute query", zap.String("result", result), zap.Error(err))
 
@@ -128,6 +130,32 @@ func (s *TcpServer) handleConn(conn net.Conn) {
 		break
 	}
 
+}
+
+func (s *TcpServer) exec(query string) (string, error) {
+	result, err := s.interpreter.Interpret(query)
+	if err != nil {
+		return "", fmt.Errorf("db exec fail: %w", err)
+	}
+
+	res := s.storage.Exec(&result.Command)
+	if res.Err != nil {
+		return "", res.Err
+	}
+
+	if result.Command.CommandType == parser.GetCommandType {
+		if res.Ok {
+			return fmt.Sprintf("val: %s", res.Val), nil
+		} else {
+			return "none", nil
+		}
+	}
+
+	if res.Ok {
+		return "ok", nil
+	}
+
+	return "none", nil
 }
 
 func (s *TcpServer) handshake(conn net.Conn) bool {

@@ -90,10 +90,18 @@ type ConfigLogging struct {
 	Output string `yaml:"output"`
 }
 
+type ConfigWAL struct {
+	FlushingBatchSize    int      `yaml:"flushing_batch_size"`
+	FlushingBatchTimeout Timeout  `yaml:"flushing_batch_timeout"`
+	MaxSegmentSize       DataSize `yaml:"max_segment_size"`
+	DataDirectory        string   `yaml:"data_directory"`
+}
+
 type Config struct {
 	Engine  ConfigEngine  `yaml:"engine"`
 	Network ConfigNetwork `yaml:"network"`
 	Logging ConfigLogging `yaml:"logging"`
+	WAL     ConfigWAL     `yaml:"wal"`
 }
 
 // Parse reads a YAML config file and unmarshals it into Config.
@@ -124,6 +132,12 @@ func Default() Config {
 		Logging: ConfigLogging{
 			Level:  LoggingLevelInfo,
 			Output: os.Stderr.Name(),
+		},
+		WAL: ConfigWAL{
+			FlushingBatchSize:    100,
+			FlushingBatchTimeout: Timeout(10 * time.Millisecond),
+			MaxSegmentSize:       DataSize(10 * MB),
+			DataDirectory:        "wal",
 		},
 	}
 }

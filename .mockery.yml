@@ -18,3 +18,12 @@ packages:
   github.com/MitrickX/simple-kv/internal/interpreter/parser:
     config:
       all: true
+  github.com/MitrickX/simple-kv/internal/utils/os:
+    config:
+      all: true
+  github.com/MitrickX/simple-kv/internal/utils/time:
+    config:
+      all: true
+  github.com/MitrickX/simple-kv/internal/wal:
+    config:
+      all: true

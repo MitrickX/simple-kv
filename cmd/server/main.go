@@ -5,16 +5,17 @@ import (
 	"flag"
 	"log"
 	"os"
-
 	"strings"
 
 	"github.com/MitrickX/simple-kv/internal/config"
-	"github.com/MitrickX/simple-kv/internal/db"
 	"github.com/MitrickX/simple-kv/internal/interpreter"
 	"github.com/MitrickX/simple-kv/internal/interpreter/parser"
 	"github.com/MitrickX/simple-kv/internal/network"
 	"github.com/MitrickX/simple-kv/internal/storage"
 	"github.com/MitrickX/simple-kv/internal/storage/engine"
+	utilsOs "github.com/MitrickX/simple-kv/internal/utils/os"
+	utilsTime "github.com/MitrickX/simple-kv/internal/utils/time"
+	"github.com/MitrickX/simple-kv/internal/wal"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -35,16 +36,20 @@ func main() {
 	logger := buildZap(&cfg)
 	defer logger.Sync()
 
-	parser := parser.NewParser()
-	interpreter := interpreter.NewInterpreter(parser)
-	engine := engine.NewEngine()
-	storage := storage.NewStorage(engine)
-	db := db.NewDB(interpreter, storage)
+	logger.Info("config parsed", zap.Any("config", cfg))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	server := network.NewTcpServer(&cfg, db, logger)
+	parser := parser.NewParser()
+	interpreter := interpreter.NewInterpreter(parser)
+	engine := engine.NewEngine()
+	wal := wal.NewWAL(&cfg, utilsOs.NewOS(), utilsTime.NewTime())
+
+	storage := storage.NewStorage(&cfg, engine, wal)
+	storage.Run(ctx)
+
+	server := network.NewTcpServer(&cfg, interpreter, storage, logger)
 	if err := server.Start(ctx); err != nil {
 		logger.Fatal("server exited with error", zap.Error(err))
 	}
